@@ -243,9 +243,10 @@ class TestHybridSearchEngine:
 
         # Verify backend vector_search was called
         assert len(mock_backend.vector_search_calls) == 1
-        query_vector, top_k = mock_backend.vector_search_calls[0]
+        query_vector, top_k, embedding_model = mock_backend.vector_search_calls[0]
         np.testing.assert_array_equal(query_vector, np.array([0.1, 0.2, 0.3], dtype=np.float32))
         assert top_k == 5
+        assert embedding_model == "microsoft/graphcodebert-base"
 
         # Verify results format
         assert len(results) == 1
@@ -255,6 +256,32 @@ class TestHybridSearchEngine:
         assert result["code"] == "def test():"
         assert result["score"] == 0.8
         assert result["score_type"] == SearchResultType.VECTOR_SIMILARITY
+
+    def test_search_vector_default_embedding_mode_does_not_require_language(
+        self, mocker, mock_backend: MockVectorStoreBackend, mock_parser, mock_embedding_func
+    ):
+        """Default embedding mode should use the server-level model without language."""
+        empty_group = SearchGroup(conditions=[])
+        mock_parser.parse.return_value = empty_group
+        engine = HybridSearchEngine(
+            table_name="test_table",
+            backend=mock_backend,
+            parser=mock_parser,
+            embedding_func=mock_embedding_func,
+            embedding_model="custom/default-model",
+            use_smart_embedding=False,
+        )
+        embedding_factory = mocker.patch.object(engine, "_get_embedding_function", return_value=mock_embedding_func)
+
+        results = engine.search("test query", "", top_k=5)
+
+        embedding_factory.assert_called_once_with("custom/default-model")
+        mock_embedding_func.assert_called_once_with("test query")
+        assert len(mock_backend.vector_search_calls) == 1
+        _query_vector, top_k, embedding_model = mock_backend.vector_search_calls[0]
+        assert top_k == 5
+        assert embedding_model == "custom/default-model"
+        assert len(results) == 1
 
     def test_search_keyword_only(self, hybrid_engine_with_backend: HybridSearchEngine,
                                  mock_backend: MockVectorStoreBackend,
@@ -317,12 +344,20 @@ class TestHybridSearchEngine:
 
         # Verify backend hybrid_search was called
         assert len(mock_backend.hybrid_search_calls) == 1
-        query_vector, filters, top_k, vector_weight, keyword_weight = mock_backend.hybrid_search_calls[0]
+        (
+            query_vector,
+            filters,
+            top_k,
+            vector_weight,
+            keyword_weight,
+            embedding_model,
+        ) = mock_backend.hybrid_search_calls[0]
         np.testing.assert_array_equal(query_vector, np.array([0.1, 0.2, 0.3], dtype=np.float32))
         assert len(filters.conditions) == 1
         assert top_k == 5
         assert vector_weight == 0.6
         assert keyword_weight == 0.4
+        assert embedding_model == "microsoft/graphcodebert-base"
 
         # Verify results format
         assert len(results) == 1
@@ -513,8 +548,10 @@ class TestBackendIntegration:
     def test_legacy_constructor_creates_postgres_backend(self, mocker):
         # mock_factory: MagicMock, mock_pool: MagicMock)
         """Test that legacy constructor creates PostgreSQL backend."""
-        mock_factory = mocker.MagicMock()
-        mock_pool = mocker.patch('cocoindex_code_mcp_server.backends.BackendFactory.create_backend')
+        mock_pool = mocker.MagicMock()
+        mock_factory = mocker.patch(
+            'cocoindex_code_mcp_server.db.pgvector.hybrid_search.BackendFactory.create_backend'
+        )
 
         mock_backend = MockVectorStoreBackend()
         mock_factory.return_value = mock_backend
@@ -538,11 +575,11 @@ class TestBackendIntegration:
                                        mock_backend: MockVectorStoreBackend):
         # mock_parser: Mock)
         """Test that search methods properly delegate to backend."""
-        mock_parser = mocker.Mock()
-
-        # Set up parser mock
+        # Set up parser and embedding mocks on the engine under test.
         empty_group = SearchGroup(conditions=[])
-        mock_parser.parse.return_value = empty_group
+        hybrid_engine_with_backend.parser.parse.return_value = empty_group
+        mock_embedding_func = mocker.Mock(return_value=np.array([0.1, 0.2, 0.3], dtype=np.float32))
+        mocker.patch.object(hybrid_engine_with_backend, '_get_embedding_function', return_value=mock_embedding_func)
 
         # Test vector search (requires language parameter)
         hybrid_engine_with_backend.search("query", "", top_k=3, language="Python")
@@ -550,7 +587,7 @@ class TestBackendIntegration:
 
         # Test keyword search
         condition_group = SearchGroup(conditions=[SearchCondition(field="lang", value="py")])
-        mock_parser.parse.return_value = condition_group
+        hybrid_engine_with_backend.parser.parse.return_value = condition_group
         hybrid_engine_with_backend.search("", "lang:py", top_k=3)
         assert len(mock_backend.keyword_search_calls) == 1
 

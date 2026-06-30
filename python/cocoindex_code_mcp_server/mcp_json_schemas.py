@@ -34,11 +34,11 @@ HYBRID_SEARCH_INPUT_SCHEMA = {
         },
         "language": {
             "type": "string",
-            "description": "Programming language to filter results by (e.g., 'Python', 'Rust'). Required for smart embeddings - ensures query uses correct embedding model for the language.",
+            "description": "Programming language to filter results by (e.g., 'Python', 'Rust'). Required only when smart embeddings are enabled - ensures query uses correct embedding model for the language.",
         },
         "embedding_model": {
             "type": "string",
-            "description": "Specific embedding model to use (e.g., 'microsoft/graphcodebert-base'). Alternative to language parameter. Required for smart embeddings.",
+            "description": "Specific embedding model to use (e.g., 'microsoft/graphcodebert-base'). Alternative to language parameter. Required only when smart embeddings are enabled.",
         },
         "top_k": {"type": "integer", "description": "Number of results to return", "default": 10},
         "vector_weight": {"type": "number", "description": "Weight for vector similarity score (0-1)", "default": 0.7},
@@ -153,11 +153,11 @@ VECTOR_SEARCH_INPUT_SCHEMA = {
         "query": {"type": "string", "description": "Text to embed and search for semantic similarity"},
         "language": {
             "type": "string",
-            "description": "Programming language to filter results by (e.g., 'Python', 'Rust'). Required for smart embeddings - ensures query uses correct embedding model for the language.",
+            "description": "Programming language to filter results by (e.g., 'Python', 'Rust'). Required only when smart embeddings are enabled - ensures query uses correct embedding model for the language.",
         },
         "embedding_model": {
             "type": "string",
-            "description": "Specific embedding model to use (e.g., 'microsoft/graphcodebert-base'). Alternative to language parameter. Required for smart embeddings.",
+            "description": "Specific embedding model to use (e.g., 'microsoft/graphcodebert-base'). Alternative to language parameter. Required only when smart embeddings are enabled.",
         },
         "top_k": {"type": "integer", "description": "Number of results to return", "default": 10},
     },

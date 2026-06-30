@@ -59,6 +59,7 @@ from .backends import BackendFactory, VectorStoreBackend
 from .cocoindex_config import (
     code_embedding_flow,
     code_to_embedding,
+    get_configured_default_embedding_model,
     run_flow_update,
     update_flow_config,
 )
@@ -273,6 +274,12 @@ def get_mcp_resources() -> list[types.Resource]:
 @click.option("--no-live", is_flag=True, help="Disable live update mode")
 @click.option("--poll", default=60, help="Polling interval in seconds for live updates")
 @click.option("--default-embedding", is_flag=True, help="Use default CocoIndex embedding")
+@click.option(
+    "--default-embedding-model",
+    default=None,
+    metavar="MODEL",
+    help="SentenceTransformer/Hugging Face model ID to use with --default-embedding.",
+)
 @click.option("--default-chunking", is_flag=True, help="Use default CocoIndex chunking")
 @click.option("--default-language-handler", is_flag=True, help="Use default CocoIndex language handling")
 @click.option(
@@ -322,6 +329,7 @@ def main(
     no_live: bool,
     poll: int,
     default_embedding: bool,
+    default_embedding_model: Optional[str],
     default_chunking: bool,
     default_language_handler: bool,
     chunk_factor_percent: int,
@@ -344,6 +352,13 @@ def main(
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         force=True,
     )
+
+    if default_embedding_model is not None:
+        default_embedding_model = default_embedding_model.strip()
+        if not default_embedding_model:
+            raise click.UsageError("--default-embedding-model must not be empty.")
+        if not default_embedding:
+            raise click.UsageError("--default-embedding-model requires --default-embedding.")
 
     # Set up signal handlers
     signal.signal(signal.SIGINT, handle_shutdown)
@@ -502,6 +517,7 @@ def main(
         enable_polling=live_enabled and poll > 0,
         poll_interval=poll,
         use_default_embedding=default_embedding,
+        default_embedding_model=default_embedding_model,
         use_default_chunking=default_chunking,
         use_default_language_handler=default_language_handler,
         chunk_factor_percent=chunk_factor_percent,
@@ -513,6 +529,8 @@ def main(
     logger.info("🚀 CocoIndex RAG MCP Server starting...")
     logger.info("📁 Paths: %s", final_paths or ["cocoindex (default)"])
     logger.info("🔴 Live updates: %s", "ENABLED" if live_enabled else "DISABLED")
+    if default_embedding:
+        logger.info("🧠 Default embedding model: %s", get_configured_default_embedding_model())
     if live_enabled:
         logger.info("⏰ Polling interval: %s seconds", poll)
     if chunk_factor_percent != 100:
@@ -884,7 +902,14 @@ def main(
         """Get current search configuration."""
         config = {
             "table_name": hybrid_search_engine.table_name if hybrid_search_engine else "unknown",
-            "embedding_model": "TODO: language dependent",
+            "embedding_model": (
+                hybrid_search_engine.embedding_model
+                if hybrid_search_engine
+                else get_configured_default_embedding_model()
+            ),
+            "use_smart_embedding": (
+                hybrid_search_engine.use_smart_embedding if hybrid_search_engine else not default_embedding
+            ),
             "parser_type": "TODO: lark_keyword_parser",
             "default_weights": {"vector_weight": 0.7, "keyword_weight": 0.3},
         }
@@ -988,7 +1013,12 @@ include file python/cocoindex_code_mcp_server/grammars/keyword_search.lark here
             # Initialize hybrid search engine
             table_name = cocoindex.utils.get_target_default_name(code_embedding_flow, "code_embeddings")
             hybrid_search_engine = HybridSearchEngine(
-                table_name=table_name, parser=parser, backend=backend, embedding_func=safe_embedding_function
+                table_name=table_name,
+                parser=parser,
+                backend=backend,
+                embedding_func=safe_embedding_function,
+                embedding_model=get_configured_default_embedding_model(),
+                use_smart_embedding=not default_embedding,
             )
 
             logger.info("✅ CocoIndex RAG MCP Server initialized successfully with backend abstraction")

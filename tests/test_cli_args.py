@@ -72,6 +72,62 @@ class TestCliArguments:
         assert paths == ['/pos/path']
 
 
+class TestMainMcpServerDefaultEmbeddingModelArguments:
+    """Test --default-embedding-model parsing for the Click-based MCP server CLI."""
+
+    def test_default_embedding_model_option_parses(self):
+        """The Click command should accept a model ID with --default-embedding."""
+        from cocoindex_code_mcp_server.main_mcp_server import main
+
+        model = "ibm-granite/granite-embedding-278m-multilingual"
+        with main.make_context(
+            "main_mcp_server",
+            ["--default-embedding", "--default-embedding-model", model, "/path/to/code"],
+        ) as ctx:
+            assert ctx.params["default_embedding"] is True
+            assert ctx.params["default_embedding_model"] == model
+            assert ctx.params["paths"] == ("/path/to/code",)
+
+
+class TestDefaultEmbeddingModelConfiguration:
+    """Test flow configuration for default embedding model selection."""
+
+    def teardown_method(self, _method):
+        """Reset global flow config after each test to avoid leaking state."""
+        from cocoindex_code_mcp_server.cocoindex_config import update_flow_config
+
+        update_flow_config()
+
+    def test_update_flow_config_sets_default_embedding_model(self):
+        from cocoindex_code_mcp_server.cocoindex_config import (
+            _global_flow_config,
+            get_configured_default_embedding_model,
+            update_flow_config,
+        )
+
+        model = "ibm-granite/granite-embedding-278m-multilingual"
+        update_flow_config(use_default_embedding=True, default_embedding_model=model)
+
+        assert _global_flow_config["use_default_embedding"] is True
+        assert _global_flow_config["use_smart_embedding"] is False
+        assert get_configured_default_embedding_model() == model
+
+    def test_update_flow_config_resets_default_embedding_model_when_omitted(self):
+        from cocoindex_code_mcp_server.cocoindex_config import (
+            DEFAULT_TRANSFORMER_MODEL,
+            get_configured_default_embedding_model,
+            update_flow_config,
+        )
+
+        update_flow_config(
+            use_default_embedding=True,
+            default_embedding_model="ibm-granite/granite-embedding-278m-multilingual",
+        )
+        update_flow_config()
+
+        assert get_configured_default_embedding_model() == DEFAULT_TRANSFORMER_MODEL
+
+
 class TestLogLevelConfiguration:
     """Tests for --log-level wiring.
 

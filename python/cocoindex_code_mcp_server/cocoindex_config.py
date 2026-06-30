@@ -57,6 +57,15 @@ LOGGER = logging.getLogger(__name__)  # root logger
 DEFAULT_TRANSFORMER_MODEL = "sentence-transformers/all-mpnet-base-v2"  # 768D - matches GraphCodeBERT/UniXcoder
 STACKTRACE = False
 
+
+def get_configured_default_embedding_model() -> str:
+    """Return the configured model for default embedding mode."""
+    flow_config = globals().get("_global_flow_config", {})
+    model = flow_config.get("default_embedding_model") or DEFAULT_TRANSFORMER_MODEL
+    assert isinstance(model, str), f"Default embedding model must be str, got {type(model)}"
+    return model
+
+
 # Import our custom extensions
 try:
     from .smart_code_embedding import LanguageModelSelector
@@ -1269,7 +1278,7 @@ def code_to_embedding(
 
     return text.transform(
         # Embed text using SentenceTransformer model with meta tensor handling.
-        cocoindex.functions.SentenceTransformerEmbed(model=DEFAULT_TRANSFORMER_MODEL)
+        cocoindex.functions.SentenceTransformerEmbed(model=get_configured_default_embedding_model())
     )
 
 
@@ -1382,7 +1391,7 @@ def get_default_embedding_model_name(content: str) -> str:
 
     This is used when --default-embedding flag is set.
     """
-    return DEFAULT_TRANSFORMER_MODEL
+    return get_configured_default_embedding_model()
 
 
 def language_to_embedding_model(language: str) -> str:
@@ -1485,7 +1494,9 @@ _global_flow_config = {
     "paths": ["."],  # Use current directory for testing
     "enable_polling": False,
     "poll_interval": 30,
+    "use_default_embedding": False,
     "use_smart_embedding": True,  # Enable smart language-aware embedding
+    "default_embedding_model": DEFAULT_TRANSFORMER_MODEL,
     # None = not set (use SOURCE_CONFIG defaults); list = user-supplied override/extension
     "extra_included_patterns": None,
     "extra_excluded_patterns": None,
@@ -1827,6 +1838,7 @@ def update_flow_config(
     enable_polling: bool = False,
     poll_interval: int = 30,
     use_default_embedding: bool = False,
+    default_embedding_model: Union[str, None] = None,
     use_default_chunking: bool = False,
     use_default_language_handler: bool = False,
     chunk_factor_percent: int = 100,
@@ -1846,6 +1858,8 @@ def update_flow_config(
             "enable_polling": enable_polling,
             "poll_interval": poll_interval,
             "use_default_embedding": use_default_embedding,
+            "use_smart_embedding": not use_default_embedding,
+            "default_embedding_model": default_embedding_model or DEFAULT_TRANSFORMER_MODEL,
             "use_default_chunking": use_default_chunking,
             "use_default_language_handler": use_default_language_handler,
             "extra_included_patterns": extra_included_patterns,
@@ -1897,6 +1911,7 @@ def update_specific_flow_config(
     enable_polling: bool = False,
     poll_interval: int = 30,
     use_default_embedding: bool = False,
+    default_embedding_model: Union[str, None] = None,
     use_default_chunking: bool = False,
     use_default_language_handler: bool = False,
     chunk_factor_percent: int = 100,
@@ -1913,6 +1928,8 @@ def update_specific_flow_config(
             "enable_polling": enable_polling,
             "poll_interval": poll_interval,
             "use_default_embedding": use_default_embedding,
+            "use_smart_embedding": not use_default_embedding,
+            "default_embedding_model": default_embedding_model or DEFAULT_TRANSFORMER_MODEL,
             "use_default_chunking": use_default_chunking,
             "use_default_language_handler": use_default_language_handler,
         }

@@ -122,6 +122,7 @@ You can now use the RAG server running at `http://localhost:3033` as a streaming
 | `--no-live` | flag | false | Disable live update mode |
 | `--poll` | int | 60 | Polling interval in seconds for live updates |
 | `--default-embedding` | flag | false | Use default CocoIndex embedding instead of smart embedding |
+| `--default-embedding-model MODEL` | string | `sentence-transformers/all-mpnet-base-v2` | SentenceTransformer/Hugging Face model ID to use with `--default-embedding` |
 | `--default-chunking` | flag | false | Use default CocoIndex chunking instead of tree-sitter/AST chunking |
 | `--default-language-handler` | flag | false | Use default CocoIndex language handling |
 | `--chunk-factor-percent` | int | 100 | Chunk size scaling factor as percentage (100=default, <100=smaller, >100=larger) |
@@ -274,6 +275,21 @@ file: lib.rs → language: rust → model: microsoft/unixcoder-base
 # Example: Haskell file uses fallback model
 file: Main.hs → language: haskell → model: sentence-transformers/all-mpnet-base-v2
 ```
+
+### Override the Default Embedding Model
+
+When smart embedding is disabled, you can choose the default SentenceTransformer/Hugging Face model explicitly:
+
+```bash
+python -m cocoindex_code_mcp_server.main_mcp_server \
+  --rescan \
+  --port 3033 \
+  --default-embedding \
+  --default-embedding-model ibm-granite/granite-embedding-278m-multilingual \
+  <path_to_code_directory>
+```
+
+`--default-embedding-model` must be used together with `--default-embedding`. If the new model has a different embedding dimension than the existing database table, recreate the target table before indexing again; `--rescan` clears data but may not change an existing vector column dimension.
 
 ### Benefits
 
