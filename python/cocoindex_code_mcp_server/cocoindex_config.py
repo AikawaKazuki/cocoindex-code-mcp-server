@@ -62,7 +62,8 @@ def get_configured_default_embedding_model() -> str:
     """Return the configured model for default embedding mode."""
     flow_config = globals().get("_global_flow_config", {})
     model = flow_config.get("default_embedding_model") or DEFAULT_TRANSFORMER_MODEL
-    assert isinstance(model, str), f"Default embedding model must be str, got {type(model)}"
+    if not isinstance(model, str):
+        raise TypeError(f"Default embedding model must be str, got {type(model)}")
     return model
 
 

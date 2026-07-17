@@ -88,6 +88,40 @@ class TestMainMcpServerDefaultEmbeddingModelArguments:
             assert ctx.params["default_embedding_model"] == model
             assert ctx.params["paths"] == ("/path/to/code",)
 
+    def test_default_embedding_model_requires_default_embedding(self):
+        """The model option should be rejected unless default embedding is enabled."""
+        from click.testing import CliRunner
+
+        from cocoindex_code_mcp_server.main_mcp_server import main
+
+        model = "ibm-granite/granite-embedding-278m-multilingual"
+        result = CliRunner().invoke(
+            main,
+            ["--default-embedding-model", model, "/path/to/code"],
+        )
+
+        assert result.exit_code == 2
+        assert "--default-embedding-model requires --default-embedding." in result.output
+
+    def test_default_embedding_model_rejects_whitespace_only_model(self):
+        """The model option should reject a whitespace-only model ID."""
+        from click.testing import CliRunner
+
+        from cocoindex_code_mcp_server.main_mcp_server import main
+
+        result = CliRunner().invoke(
+            main,
+            [
+                "--default-embedding",
+                "--default-embedding-model",
+                "   ",
+                "/path/to/code",
+            ],
+        )
+
+        assert result.exit_code == 2
+        assert "--default-embedding-model must not be empty." in result.output
+
 
 class TestDefaultEmbeddingModelConfiguration:
     """Test flow configuration for default embedding model selection."""
@@ -126,6 +160,18 @@ class TestDefaultEmbeddingModelConfiguration:
         update_flow_config()
 
         assert get_configured_default_embedding_model() == DEFAULT_TRANSFORMER_MODEL
+
+    def test_get_configured_default_embedding_model_rejects_non_string(self):
+        """A non-string configured model should always fail at runtime."""
+        from cocoindex_code_mcp_server.cocoindex_config import (
+            _global_flow_config,
+            get_configured_default_embedding_model,
+        )
+
+        _global_flow_config["default_embedding_model"] = 123
+
+        with pytest.raises(TypeError, match="Default embedding model must be str"):
+            get_configured_default_embedding_model()
 
 
 class TestLogLevelConfiguration:
